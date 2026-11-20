@@ -5,3 +5,4 @@ export { AdministratorModel } from './Administrator';
 export { AttendanceModel } from './Attendance';
 export { InvitationModel } from './Invitation';
 export { ActivityLogModel } from './ActivityLog';
+export { ParticipantPhotoModel } from './ParticipantPhoto';

@@ -10,13 +10,19 @@ import { emailService } from '../email/email.service';
 import { issueQrForParticipant } from '../../services/qr.service';
 import { generateParticipantPdf } from '../pdf/pdf.service';
 import { InvitationModel } from '../../models/Invitation';
+import { ParticipantPhotoModel } from '../../models/ParticipantPhoto';
+import { parsePhoto } from '../../utils/photo';
 
 /** Everyone who registers through the public form is a postgraduate student. */
 const DEFAULT_CATEGORY_NAME = 'Postgraduate Students';
 
 const supported = new Set(['fullName', 'email', 'phone', 'gender', 'institution', 'department', 'matriculationNumber', 'enrolledProgramme']);
 
-export async function registerForEvent(input: Record<string, unknown>) {
+export async function registerForEvent(rawInput: Record<string, unknown>) {
+  // The photo is handled separately from the other registration fields
+  const { photo, ...input } = rawInput;
+  const parsedPhoto = parsePhoto(photo);
+
   const event = await getPublishedEventDoc();
   if (!isRegistrationOpen(event)) throw new AppError('Registration is not currently open for this event', 400);
 
@@ -63,6 +69,14 @@ export async function registerForEvent(input: Record<string, unknown>) {
     });
 
     try {
+      await ParticipantPhotoModel.create({
+        participantId: participant._id,
+        eventId: event._id,
+        contentType: parsedPhoto.contentType,
+        data: parsedPhoto.buffer,
+        size: parsedPhoto.buffer.length,
+      });
+
       const qr = await issueQrForParticipant(participant);
       const qrImage = `data:image/png;base64,${qr.image.toString('base64')}`;
       const cid = 'uabs-registration-qr';

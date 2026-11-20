@@ -1,3 +1,4 @@
+import { getPhotoDataUrl } from '../../services/photo.service';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import { Types } from 'mongoose';
@@ -349,7 +350,7 @@ const getParticipant = asyncHandler(async (req, res) => {
 
   const invitation = (await InvitationModel.findOne({ participantId: id }).select('-__v').lean()) as unknown as LeanDoc | null;
 
-  res.json({ success: true, data: { ...safe(p), invitation } });
+  res.json({ success: true, data: { ...safe(p), invitation, photo: await getPhotoDataUrl(id) } });
 });
 
 const editParticipant = asyncHandler(async (req, res) => {
