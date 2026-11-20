@@ -1,0 +1,3 @@
+import type {Request,Response,NextFunction} from 'express';import type {AdminRole,AdminPermission} from '../constants/modelEnums';import {AppError} from '../utils/AppError';
+export const authorizeRoles=(...roles:AdminRole[])=> (req:Request,_res:Response,next:NextFunction)=>{if(!req.administrator||!roles.includes(req.administrator.role))return next(new AppError('Forbidden',403));next();};
+export const authorizePermissions=(...permissions:AdminPermission[])=> (req:Request,_res:Response,next:NextFunction)=>{if(!req.administrator||!permissions.every(p=>req.administrator?.permissions.includes(p)))return next(new AppError('Forbidden',403));next();};

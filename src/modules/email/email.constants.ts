@@ -1,0 +1,1 @@
+export const UABS_CONTACT_EMAIL='uabs@uniabuja.edu.ng'; export const UABS_CONTACT_PHONE='+234-8037889103'; export const UABS_WEBSITE='https://uabsconference.org.ng'; export const MAX_EMAIL_ATTEMPTS=Number(process.env.EMAIL_MAX_ATTEMPTS||3);
