@@ -9,6 +9,7 @@ import { verifyQrToken } from '../../services/qr.service';
 import { getEvent } from '../events/events.service';
 import { AppError } from '../../utils/AppError';
 import { getPhotoDataUrl } from '../../services/photo.service';
+import { issueScanProof } from '../../services/scanProof.service';
 
 type LeanDoc = Record<string, any>;
 
@@ -207,6 +208,9 @@ async function scanQr(req: Request, res: Response, next: NextFunction): Promise<
       outcome: result.outcome,
       participant: { ...toSafeParticipant(participant, existing), photo: await getPhotoDataUrl(participant._id) },
       checkIn: existing ? { checkedInAt: existing.checkedInAt, gate: existing.gate } : undefined,
+            scanProof: ['PENDING', 'APPROVED'].includes(participant.registrationStatus)
+        ? issueScanProof(String(participant._id), adminId(req))
+        : undefined,
       message: isValid
         ? 'Participant is eligible for check-in'
         : result.outcome === 'ALREADY_CHECKED_IN'

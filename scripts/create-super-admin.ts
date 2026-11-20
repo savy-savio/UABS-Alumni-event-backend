@@ -1,3 +1,51 @@
-import mongoose from 'mongoose';import readline from 'node:readline/promises';import {stdin,stdout} from 'node:process';import {connectDatabase,disconnectDatabase} from '../src/config/database';import {AdministratorModel} from '../src/models/Administrator';import {hashPassword,validatePassword} from '../src/utils/password';import {normalizeEmail} from '../src/utils/validators';
-const run=async()=>{const rl=readline.createInterface({input:stdin,output:stdout});try{await connectDatabase();if(await AdministratorModel.exists({role:'SUPER_ADMIN'})){throw new Error('A SUPER_ADMIN already exists; refusing duplicate bootstrap.');}const fullName=process.env.ADMIN_NAME||await rl.question('Administrator name: ');const email=normalizeEmail(process.env.ADMIN_EMAIL||await rl.question('Administrator email: '));const password=process.env.ADMIN_PASSWORD||await rl.question('Password (input visible in terminal): ');validatePassword(password);await AdministratorModel.create({fullName,email,passwordHash:await hashPassword(password),role:'SUPER_ADMIN',isActive:true});console.log('Initial SUPER_ADMIN created.');}finally{rl.close();await disconnectDatabase();await mongoose.disconnect().catch(()=>undefined);}};
-run().catch(e=>{console.error(e instanceof Error?e.message:'Seed failed');process.exitCode=1;});
+import mongoose from 'mongoose';
+import { connectDatabase, disconnectDatabase } from '../src/config/database';
+import { AdministratorModel } from '../src/models/Administrator';
+import { hashPassword, validatePassword } from '../src/utils/password';
+import { normalizeEmail } from '../src/utils/validators';
+
+const run = async (): Promise<void> => {
+  const fullName = process.env.ADMIN_NAME?.trim();
+  const emailRaw = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!fullName || !emailRaw || !password) {
+    throw new Error('Set ADMIN_NAME, ADMIN_EMAIL and ADMIN_PASSWORD before running this script.');
+  }
+
+  validatePassword(password);
+  const email = normalizeEmail(emailRaw);
+  const passwordHash = await hashPassword(password);
+
+  await connectDatabase();
+
+  const existing = await AdministratorModel.findOne({ email });
+  if (existing) {
+    existing.fullName = fullName;
+    existing.passwordHash = passwordHash;
+    existing.role = 'SUPER_ADMIN';
+    existing.isActive = true;
+    existing.passwordChangedAt = new Date();
+    await existing.save();
+    console.log(`Updated existing administrator ${email} (password reset, SUPER_ADMIN, active).`);
+  } else {
+    await AdministratorModel.create({
+      fullName,
+      email,
+      passwordHash,
+      role: 'SUPER_ADMIN',
+      isActive: true,
+    });
+    console.log(`SUPER_ADMIN created: ${email}`);
+  }
+};
+
+run()
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : 'Failed to create Super Admin');
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await disconnectDatabase();
+    await mongoose.disconnect().catch(() => undefined);
+  });

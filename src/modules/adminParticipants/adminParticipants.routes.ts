@@ -18,6 +18,7 @@ import { renderMail } from '../email/email.templates';
 import { getEvent } from '../events/events.service';
 import { getCurrentQr, revokeQr, regenerateQr } from '../../services/qr.service';
 import { generateParticipantPdf } from '../pdf/pdf.service';
+import { assertScanProof } from '../../services/scanProof.service';
 
 type LeanDoc = Record<string, any>;
 
@@ -52,7 +53,7 @@ const editSchema = z
   .strict();
 
 const reasonSchema = z.object({ reason: z.string().trim().min(3).max(1000).optional() }).strict();
-const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
+const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000), scanProof: z.string().max(300).optional() }).strict();
 
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -389,6 +390,7 @@ const editParticipant = asyncHandler(async (req, res) => {
 
 const approveParticipant = asyncHandler(async (req, res) => {
   const id = idSchema.parse(req.params.participantId);
+  assertScanProof(req.body?.scanProof, id, adminId(req));
   const { p, event, category } = await loadParticipant(id);
 
   if (p.registrationStatus !== 'PENDING') throw new AppError('Only pending registrations may be approved', 409);
@@ -436,6 +438,7 @@ const approveParticipant = asyncHandler(async (req, res) => {
 const rejectParticipant = asyncHandler(async (req, res) => {
   const id = idSchema.parse(req.params.participantId);
   const body = rejectSchema.parse(req.body);
+  assertScanProof(body.scanProof, id, adminId(req));
   const { p, event } = await loadParticipant(id);
 
   if (!['PENDING', 'APPROVED'].includes(p.registrationStatus)) {

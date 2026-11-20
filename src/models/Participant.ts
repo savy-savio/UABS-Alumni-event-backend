@@ -26,6 +26,7 @@ const participantSchema = new Schema({
   department: { type: String, trim: true, maxlength: 160 },
   matriculationNumber: { type: String, trim: true, uppercase: true, maxlength: 80 },
   enrolledProgramme: { type: String, trim: true, maxlength: 180 },
+  graduationYear: { type: Number, min: 1990, max: 2035 },
   qrTokenHash: { type: String, select: false, trim: true, minlength: 32, maxlength: 256 },
   qrIssuedAt: { type: Date },
   qrStatus: { type: String, enum: QR_STATUSES, default: 'ACTIVE' },
