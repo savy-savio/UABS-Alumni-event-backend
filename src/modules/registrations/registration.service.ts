@@ -41,7 +41,7 @@ export async function registerForEvent(input: Record<string, unknown>) {
   const permitted = new Set([
     ...(category.requiredFields ?? []),
     ...(category.optionalFields ?? []),
-    'fullName', 'email', 'phone', 'gender', 'categoryId', 'additionalInformation',
+    'fullName', 'email', 'phone', 'gender', 'categoryId', 'additionalInformation', 'graduationYear',
   ]);
   for (const key of Object.keys(input)) {
     if (!permitted.has(key)) throw new AppError(`Field '${key}' is not permitted for this participant category`, 400);
@@ -59,6 +59,7 @@ export async function registerForEvent(input: Record<string, unknown>) {
       registrationStatus: 'PENDING',
       matriculationNumber: input.matriculationNumber,
       enrolledProgramme: input.enrolledProgramme,
+      graduationYear: input.graduationYear,
     });
 
     try {
