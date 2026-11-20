@@ -205,14 +205,13 @@ export function renderMail(type: EmailType, c: MailContext) {
       ${signoff()}`;
   } else if (type === 'REGISTRATION_APPROVED') {
     subject = `Registration approved — ${e.name || 'UABS event'}`;
-    preheader = 'Your registration has been approved. Your accreditation pass is inside.';
+    preheader = 'Your registration has been approved and you are checked in.';
     body = `${heading('Registration Approved')}
       ${p(`Dear <strong>${esc(c.name)}</strong>,`)}
-      ${p(`We are pleased to inform you that your registration for <strong>${eventName}</strong> has been approved. Please keep your accreditation pass available for entry.`)}
+      ${p(`Your registration for <strong>${eventName}</strong> has been approved and you have been checked in. Thank you for joining us.`)}
       ${themeBlock(e)}
       ${passBlock(c)}
       ${detailsBlock(e)}
-      ${noticeBlock('<strong>Your QR code is personal</strong> and must not be shared.')}
       ${signoff()}`;
   } else if (type === 'REGISTRATION_REJECTED') {
     subject = `Registration update — ${e.name || 'UABS event'}`;

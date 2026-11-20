@@ -6,6 +6,7 @@ import { rateLimit } from 'express-rate-limit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ParticipantModel } from '../../models/Participant';
+import { AttendanceModel } from '../../models/Attendance';
 import { ParticipantCategoryModel } from '../../models/ParticipantCategory';
 import { EventModel } from '../../models/Event';
 import { InvitationModel } from '../../models/Invitation';
@@ -19,7 +20,6 @@ import { getEvent } from '../events/events.service';
 import { getCurrentQr, revokeQr, regenerateQr } from '../../services/qr.service';
 import { generateParticipantPdf } from '../pdf/pdf.service';
 import { assertScanProof } from '../../services/scanProof.service';
-import { AttendanceModel } from '../../models/Attendance';
 
 type LeanDoc = Record<string, any>;
 
@@ -401,7 +401,8 @@ const approveParticipant = asyncHandler(async (req, res) => {
   p.approvedAt = new Date();
   await p.save();
   await audit(req, 'REGISTRATION_APPROVED', 'Registration approved', p.eventId, p._id);
-    // Approval counts as check-in
+
+  // Approval counts as check-in
   await AttendanceModel.findOneAndUpdate(
     { eventId: p.eventId, participantId: p._id },
     {
@@ -417,36 +418,30 @@ const approveParticipant = asyncHandler(async (req, res) => {
     { upsert: true, new: true },
   );
 
-  let delivery: { sent: boolean } = { sent: false };
-  const qr = await getCurrentQr(id);
+  // No QR code or PDF pass: the person is already at the event
+  const mail = renderMail('REGISTRATION_APPROVED', {
+    name: p.fullName,
+    email: p.email,
+    registrationId: p.registrationId,
+    category: category?.name,
+    status: p.registrationStatus,
+    matriculationNumber: p.matriculationNumber,
+    programme: p.enrolledProgramme,
+    event,
+  });
 
-  if (qr) {
-    const mail = renderMail('REGISTRATION_APPROVED', {
-      name: p.fullName,
-      email: p.email,
-      registrationId: p.registrationId,
-      category: category?.name,
-      status: p.registrationStatus,
-      matriculationNumber: p.matriculationNumber,
-      programme: p.enrolledProgramme,
-      event,
-      qrCid: QR_CID,
-    });
-    const pdf = await tryPdfAttachment(id);
-
-    delivery = await emailService.send({
-      to: p.email,
-      subject: mail.subject,
-      html: mail.html,
-      text: mail.text,
-      type: 'REGISTRATION_APPROVED',
-      eventId: String(p.eventId),
-      participantId: id,
-      idempotencyKey: `approve-${id}-${p.updatedAt?.getTime() || Date.now()}`,
-      adminId: adminId(req),
-      attachments: [logoAttachment(), qrAttachment(qr.image, 'accreditation-qr.png'), ...(pdf ? [pdf] : [])],
-    });
-  }
+  const delivery = await emailService.send({
+    to: p.email,
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+    type: 'REGISTRATION_APPROVED',
+    eventId: String(p.eventId),
+    participantId: id,
+    idempotencyKey: `approve-${id}-${p.updatedAt?.getTime() || Date.now()}`,
+    adminId: adminId(req),
+    attachments: [logoAttachment()],
+  });
 
   res.json({ success: true, data: { participant: safe(p.toObject()), emailDelivery: delivery.sent } });
 });

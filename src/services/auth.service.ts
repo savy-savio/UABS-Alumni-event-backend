@@ -19,31 +19,28 @@ const audit=async(id:mongoose.Types.ObjectId|undefined,action:string,description
 const cookieName='uabs_refresh';
 export const refreshCookieName=cookieName;
 export const cookieOptions=()=>({httpOnly:true,secure:env.COOKIE_SECURE,sameSite:env.COOKIE_SAME_SITE as 'strict'|'lax'|'none',path:'/api/v1/auth',...(env.COOKIE_DOMAIN?{domain:env.COOKIE_DOMAIN}:{})});
+const REFRESH_MS=30*86400000;
+export const sessionCookieOptions=()=>({...cookieOptions(),maxAge:REFRESH_MS});
 export const login=async(email:string,password:string,req?:{ip?:string;headers?:Record<string,string|string[]|undefined>})=>{
  const admin=await AdministratorModel.findOne({email:normalizeEmail(email)}).select('+passwordHash');
  if(!admin||!admin.isActive||!(await verifyPassword(password,admin.passwordHash))){await audit(admin?admin._id:undefined,'ADMIN_LOGIN_FAILED','Failed administrator login', 'FAILURE',req);throw new AppError('Invalid email or password',401);}
  const sessionId=new mongoose.Types.ObjectId().toString(),identity={administratorId:admin._id.toString(),role:admin.role as AdminRole,sessionId};
- const refresh=signRefresh(identity);const expiresAt=new Date(Date.now()+7*86400000);
+ const refresh=signRefresh(identity);const expiresAt=new Date(Date.now()+REFRESH_MS);
  await AuthSessionModel.create({administratorId:admin._id,hashedRefreshToken:hashToken(refresh),expiresAt,ipAddress:req?.ip,userAgent:req?.headers?.['user-agent']});
  admin.lastLoginAt=new Date();await admin.save();
  await audit(admin._id,'ADMIN_LOGIN','Administrator logged in','SUCCESS',req);
  return {accessToken:signAccess(identity),refreshToken:refresh,admin:profile(admin)};
 };
-export const refresh=async(token:string,req?:{ip?:string;headers?:Record<string,string|string[]|undefined>})=>{
+export const refresh=async(token:string,_req?:{ip?:string;headers?:Record<string,string|string[]|undefined>})=>{
  let payload;try{payload=verifyRefresh(token);}catch{throw new AppError('Invalid refresh token',401);}
  const session=await AuthSessionModel.findOne({administratorId:payload.administratorId,hashedRefreshToken:hashToken(token)});
- if(!session||session.revokedAt||session.expiresAt<=new Date()){
-   if(session){session.revokedAt=new Date();await session.save();}
-   await AuthSessionModel.updateMany({administratorId:payload.administratorId},{revokedAt:new Date()});
-   await audit(new mongoose.Types.ObjectId(payload.administratorId),'REFRESH_TOKEN_REUSE','Invalidated refresh token detected; sessions revoked','FAILURE',req);
-   throw new AppError('Invalid refresh token',401);
- }
- session.revokedAt=new Date();await session.save();
+ // Only this one session is affected if its token is bad: other admins stay signed in.
+ if(!session||session.revokedAt||session.expiresAt<=new Date())throw new AppError('Invalid refresh token',401);
  const admin=await AdministratorModel.findById(payload.administratorId);
- if(!admin||!admin.isActive){throw new AppError('Authentication required',401);}
- const sessionId=new mongoose.Types.ObjectId().toString(),identity={administratorId:admin._id.toString(),role:admin.role as AdminRole,sessionId},next=signRefresh(identity);
- await AuthSessionModel.create({administratorId:admin._id,hashedRefreshToken:hashToken(next),expiresAt:new Date(Date.now()+7*86400000),ipAddress:req?.ip,userAgent:req?.headers?.['user-agent']});
- return {accessToken:signAccess(identity),refreshToken:next};
+ if(!admin||!admin.isActive)throw new AppError('Authentication required',401);
+ // The refresh token is NOT rotated, so parallel refreshes (several tabs, several requests) can never invalidate each other.
+ const identity={administratorId:admin._id.toString(),role:admin.role as AdminRole,sessionId:session._id.toString()};
+ return {accessToken:signAccess(identity),refreshToken:token};
 };
 export const logout=async(token?:string,req?:{ip?:string;headers?:Record<string,string|string[]|undefined>})=>{if(token){try{const p=verifyRefresh(token);await AuthSessionModel.updateOne({hashedRefreshToken:hashToken(token),administratorId:p.administratorId},{revokedAt:new Date()});await audit(new mongoose.Types.ObjectId(p.administratorId),'ADMIN_LOGOUT','Administrator logged out','SUCCESS',req);}catch{/* Logout remains idempotent. */}}};
 export const forgotPassword=async(email:string)=>{
