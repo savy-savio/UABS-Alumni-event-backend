@@ -19,6 +19,7 @@ import { getEvent } from '../events/events.service';
 import { getCurrentQr, revokeQr, regenerateQr } from '../../services/qr.service';
 import { generateParticipantPdf } from '../pdf/pdf.service';
 import { assertScanProof } from '../../services/scanProof.service';
+import { AttendanceModel } from '../../models/Attendance';
 
 type LeanDoc = Record<string, any>;
 
@@ -400,6 +401,21 @@ const approveParticipant = asyncHandler(async (req, res) => {
   p.approvedAt = new Date();
   await p.save();
   await audit(req, 'REGISTRATION_APPROVED', 'Registration approved', p.eventId, p._id);
+    // Approval counts as check-in
+  await AttendanceModel.findOneAndUpdate(
+    { eventId: p.eventId, participantId: p._id },
+    {
+      $set: {
+        eventId: p.eventId,
+        participantId: p._id,
+        registrationId: p.registrationId,
+        checkInStatus: 'CHECKED_IN',
+        checkedInAt: new Date(),
+        checkedInBy: new Types.ObjectId(adminId(req)),
+      },
+    },
+    { upsert: true, new: true },
+  );
 
   let delivery: { sent: boolean } = { sent: false };
   const qr = await getCurrentQr(id);
