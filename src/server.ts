@@ -2,6 +2,7 @@ import http from 'http';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { logger } from './utils/logger';
+import { startKeepAlive } from './services/keepAlive';
 import app from './app';
 
 let server: http.Server | undefined;
@@ -40,6 +41,7 @@ const start = async (): Promise<void> => {
 
   server = app.listen(env.PORT, () => {
     logger.info(`Server running at http://localhost:${env.PORT} (${env.NODE_ENV})`);
+    startKeepAlive();
   });
 
   server.on('error', (error: NodeJS.ErrnoException) => {
